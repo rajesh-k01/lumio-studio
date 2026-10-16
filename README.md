@@ -61,6 +61,49 @@ The full list of 51 features, with build status, is in `docs/WINK_ANALYSIS.md` a
 | `LUMIO_FFMPEG`, `LUMIO_FFPROBE` | `ffmpeg`, `ffprobe` | Paths to the FFmpeg tools |
 | `LUMIO_WORKERS` | 2 | Image worker threads |
 
+## Deploy
+
+The server is a long-running Node process, so it needs a real host. GitHub Pages
+cannot run it: Pages only serves static files, and Lumio needs Express, SQLite,
+FFmpeg and background jobs. Point Pages at `dist/lumio-standalone.html` only if
+you want the browser-only demo mode (no VIP, no server-side video, no neural
+upscale).
+
+### Docker
+
+```bash
+docker build -t lumio-studio .
+docker run -p 3000:3000 -v lumio-data:/app/data lumio-studio
+```
+
+The image installs FFmpeg and runs as the unprivileged `node` user.
+
+### The one thing you must not skip
+
+`/app/data` holds the SQLite database. **Mount it as a persistent volume.** On a
+container filesystem that is wiped between deploys, you lose every account,
+project and session. Railway: add a volume mounted at `/app/data`. Fly.io: `fly
+volumes create lumio_data` and mount it at `/app/data`. A plain VM: point
+`LUMIO_DB` at a directory you back up.
+
+### Production settings
+
+| Variable | Value | Why |
+|---|---|---|
+| `COOKIE_SECURE` | `1` | Marks the session cookie HTTPS-only. Set this the moment you are behind TLS, or the cookie will also be sent over plain HTTP. |
+| `TRUST_PROXY` | `1` | Behind a reverse proxy (Railway, Fly, nginx) rate limiting otherwise sees the proxy's IP for every request, so one attacker throttles everyone. |
+
+Give the container at least 2 CPUs. The video worker allows uploads to 300 MB and
+renders up to 8K with a 20-minute timeout.
+
+### Neural upscale
+
+Off by default and left out of the image on purpose. Turning on `LUMIO_AI=1`
+needs Python with OpenCV contrib **4.x** (not 5.x) plus the model weights, and
+the `realesrgan` engine additionally needs PyTorch. That pushes the image past
+several GB, so it belongs on a bigger host than the default one. See
+`docs/AI_WORKER.md`.
+
 ## Testing
 
 ```bash

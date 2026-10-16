@@ -1,0 +1,22 @@
+node_modules
+npm-debug.log*
+
+# build output and test fixtures are not part of the runtime image
+dist
+test
+docs
+data
+ai/models
+ai/__pycache__
+**/__pycache__
+*.pyc
+
+.git
+.gitignore
+.github
+Dockerfile
+.dockerignore
+
+eslint.config.js
+README.md
+docs
