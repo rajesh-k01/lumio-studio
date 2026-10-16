@@ -1,0 +1,7 @@
+node_modules/
+data/
+dist/
+ai/models/
+*.db
+*.db-wal
+*.db-shm

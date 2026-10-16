@@ -1,0 +1,29 @@
+{
+  "name": "lumio-studio",
+  "version": "1.0.0",
+  "description": "Lumio Studio: free and VIP photo and video enhancer with a Node backend",
+  "private": true,
+  "type": "commonjs",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test \"test/*.test.js\"",
+    "bundle": "node scripts/bundle.js",
+    "lint": "eslint .",
+    "fuzz": "node test/fuzz/engine.fuzz.js && node test/fuzz/server.fuzz.js",
+    "setup:ai": "bash scripts/setup-ai.sh"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "globals": "^15.15.0"
+  }
+}
