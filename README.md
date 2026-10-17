@@ -65,9 +65,16 @@ The full list of 51 features, with build status, is in `docs/WINK_ANALYSIS.md` a
 
 The server is a long-running Node process, so it needs a real host. GitHub Pages
 cannot run it: Pages only serves static files, and Lumio needs Express, SQLite,
-FFmpeg and background jobs. Point Pages at `dist/lumio-standalone.html` only if
-you want the browser-only demo mode (no VIP, no server-side video, no neural
-upscale).
+FFmpeg and background jobs.
+
+### Browser-only demo on GitHub Pages
+
+The `index.html` in the repository root is the whole app in one file (demo mode:
+no server, no real accounts, no server-side video and no neural upscale). GitHub
+Pages serves it at `https://<user>.github.io/<repo>/` once Settings, Pages is set
+to "Deploy from a branch", branch `main`, folder `/ (root)`. The file name must be
+exactly `index.html`. To rebuild it after changing the code, run `npm run pages`.
+It is left out of the Docker image.
 
 ### Docker
 
@@ -76,7 +83,7 @@ docker build -t lumio-studio .
 docker run -p 3000:3000 -v lumio-data:/app/data lumio-studio
 ```
 
-The image installs FFmpeg and runs as the unprivileged `node` user.
+The image installs FFmpeg. It starts as root only to make `/app/data` writable (a mounted volume is usually owned by root), then runs the server as the unprivileged `node` user.
 
 ### The one thing you must not skip
 

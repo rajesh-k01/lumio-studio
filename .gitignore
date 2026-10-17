@@ -1,0 +1,14 @@
+node_modules/
+data/
+dist/
+ai/models/
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc
+.venv/
+ai/venv/
+ai/train/runs/
+.env
+*.pth
