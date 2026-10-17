@@ -11,7 +11,7 @@ function securityHeaders(req, res, next) {
   res.set({
     "Content-Security-Policy": [
       "default-src 'self'",
-      "script-src 'self'",
+      "script-src 'self' 'wasm-unsafe-eval'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src https://fonts.gstatic.com",
       "img-src 'self' data: blob:",

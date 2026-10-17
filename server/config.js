@@ -25,6 +25,7 @@ function loadConfig(overrides) {
     // "realesrgan" (default, needs torch) or "edsr" (needs opencv-contrib 4.x). Measured CPU speed: Real-ESRGAN compact about
     // 0.08 ms per input pixel, EDSR about 0.5 ms. The limits below keep a request inside its time limit on a 2 CPU machine.
     aiEngine: env.LUMIO_AI_ENGINE === "edsr" ? "edsr" : "realesrgan",
+    aiArch: ["plus", "swinir"].includes(env.LUMIO_AI_ARCH) ? env.LUMIO_AI_ARCH : "compact", // which Real-ESRGAN-family network the worker loads
     aiMaxPixels: Number(env.LUMIO_AI_MAX_PIXELS) || (env.LUMIO_AI_ENGINE === "edsr" ? 300 * 1000 : 1000 * 1000),
     // Face restoration (GFPGAN) after the upscale. Needs GFPGANv1.4.pth in the models folder and facexlib. Off unless LUMIO_AI_FACES=1.
     aiFaces: env.LUMIO_AI_FACES === "1",

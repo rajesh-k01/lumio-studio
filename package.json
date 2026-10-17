@@ -16,7 +16,7 @@
     "lint": "eslint .",
     "fuzz": "node test/fuzz/engine.fuzz.js && node test/fuzz/server.fuzz.js",
     "setup:ai": "bash scripts/setup-ai.sh",
-    "pages": "node scripts/bundle.js && node -e \"require('fs').copyFileSync('dist/lumio-standalone.html','index.html')\""
+    "pages": "node scripts/bundle.js && node -e \"const f=require('fs');f.copyFileSync('dist/lumio-standalone.html','index.html');f.cpSync('public/ai-web','ai-web',{recursive:true})\""
   },
   "dependencies": {
     "express": "^4.21.2",

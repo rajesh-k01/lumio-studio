@@ -2,7 +2,9 @@
 """Real-ESRGAN (general x4 v3, the small "compact" network) for Lumio.
 
 This is a trained neural network. It repairs blur, noise and JPEG damage and adds realistic detail,
-which classical filters cannot do. Weights: realesr-general-x4v3.pth (BSD-3-Clause licence,
+which classical filters cannot do. Optional bigger networks: --arch plus (RealESRGAN_x4plus.pth) and --arch swinir (SwinIR_L_GAN.pth, Apache-2.0, from
+https://github.com/JingyunLiang/SwinIR/releases/tag/v0.0, file 003_realSR_BSRGAN_DFOWMFC_s64w8_SwinIR-L_x4_GAN.pth).
+Weights: realesr-general-x4v3.pth (BSD-3-Clause licence,
 https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.5.0), put it in ai/models/.
 
 Usage:  python3 ai/realesrgan.py --in in.jpg --out out.png --outscale 2
@@ -94,8 +96,14 @@ def run_tiled(torch, net, img, tile, pad, scale=4):
     for y in range(0, h, tile):
         for x in range(0, w, tile):
             y0, x0, y1, x1 = max(0, y - pad), max(0, x - pad), min(h, y + tile + pad), min(w, x + tile + pad)
+            part = img[:, :, y0:y1, x0:x1]
+            ph, pw = (-part.shape[2]) % 8, (-part.shape[3]) % 8
+            if ph or pw:
+                part = torch.nn.functional.pad(part, (0, pw, 0, ph), mode="reflect")
             with torch.no_grad():
-                res = net(img[:, :, y0:y1, x0:x1])
+                res = net(part)
+            if ph or pw:
+                res = res[:, :, :res.shape[2] - ph * scale, :res.shape[3] - pw * scale]
             ty, tx = (y - y0) * scale, (x - x0) * scale
             th, tw = min(tile, h - y) * scale, min(tile, w - x) * scale
             out[:, :, y * scale:y * scale + th, x * scale:x * scale + tw] = res[:, :, ty:ty + th, tx:tx + tw]
@@ -111,7 +119,7 @@ def main():
     ap.add_argument("--outscale", type=float, default=2.0)
     ap.add_argument("--natural", type=float, default=0.0, help="0 = full neural result, 1 = plain upscale")
     ap.add_argument("--tile", type=int, default=256)
-    ap.add_argument("--arch", choices=["compact", "plus"], default="compact", help="compact = realesr-general-x4v3 (fast), plus = RealESRGAN_x4plus (slow, more texture)")
+    ap.add_argument("--arch", choices=["compact", "plus", "swinir"], default="compact", help="compact = realesr-general-x4v3 (fast), plus = RealESRGAN_x4plus (about 10x slower, more texture), swinir = SwinIR-L GAN (about 40x slower, the most natural faces; wants a GPU)")
     ap.add_argument("--model", default="")
     ap.add_argument("--threads", type=int, default=0)
     a = ap.parse_args()
@@ -124,7 +132,7 @@ def main():
     except ImportError:
         sys.exit("Needs torch, numpy and opencv: pip install torch numpy opencv-python-headless")
     if not a.model:
-        a.model = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "realesr-general-x4v3.pth" if a.arch == "compact" else "RealESRGAN_x4plus.pth")
+        a.model = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", {"compact": "realesr-general-x4v3.pth", "plus": "RealESRGAN_x4plus.pth", "swinir": "SwinIR_L_GAN.pth"}[a.arch])
     if not os.path.isfile(a.model):
         sys.exit("Model file missing: %s (see docs/AI_WORKER.md)" % a.model)
     if a.threads:
@@ -132,7 +140,13 @@ def main():
     batch = bool(a.src_dir)
     if batch and not a.dst_dir or not batch and not (a.src and a.dst):
         sys.exit("Give --in and --out, or --in-dir and --out-dir.")
-    net = (build if a.arch == "compact" else build_plus)(torch, nn, F)()
+    if a.arch == "swinir":
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from swinir.network_swinir import SwinIR
+        net = SwinIR(upscale=4, in_chans=3, img_size=64, window_size=8, img_range=1.0, depths=[6] * 9, embed_dim=240, num_heads=[8] * 9,
+                     mlp_ratio=2, upsampler="nearest+conv", resi_connection="3conv")
+    else:
+        net = (build if a.arch == "compact" else build_plus)(torch, nn, F)()
     state = torch.load(a.model, map_location="cpu", weights_only=True)
     for key in ("params_ema", "params"):
         if key in state:

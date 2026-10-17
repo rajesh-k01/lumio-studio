@@ -14,7 +14,7 @@ const rules = {
 };
 
 module.exports = [
-  { ignores: ["node_modules/**", "dist/**", "data/**"] },
+  { ignores: ["node_modules/**", "dist/**", "data/**", "public/ai-web/**", "ai-web/**", "index.html"] },
   js.configs.recommended,
   {
     files: ["public/js/**/*.js"],

@@ -33,6 +33,9 @@ module.exports = function createNeural(cfg) {
   }
 
   const modelDir = () => cfg.aiModelDir || path.join(AI_DIR, "models");
+  const ARCH_FILE = { compact: "realesr-general-x4v3.pth", plus: "RealESRGAN_x4plus.pth", swinir: "SwinIR_L_GAN.pth" };
+  // arguments that pick the network (compact is the default and needs none), shared by single images and video frames
+  const archArgs = () => ["--arch", cfg.aiArch || "compact"].concat(cfg.aiModelDir ? ["--model", path.join(cfg.aiModelDir, ARCH_FILE[cfg.aiArch || "compact"])] : []);
   const tmp = (id, name) => path.join(os.tmpdir(), "lumio-" + id + "-" + name);
 
   /* Enlarge one PNG file by `scale` (any factor 1 to 8) and optionally restore faces. Returns the path of the result
@@ -43,7 +46,7 @@ module.exports = function createNeural(cfg) {
       const done = { faces: false };
       const args = edsr
         ? [path.join(AI_DIR, "upscale.py"), "--in", inFile, "--out", outFile, "--scale", String(scale <= 2 ? 2 : scale <= 3 ? 3 : 4)].concat(cfg.aiModelDir ? ["--model-dir", cfg.aiModelDir] : [])
-        : [path.join(AI_DIR, "realesrgan.py"), "--in", inFile, "--out", outFile, "--outscale", String(scale), "--natural", String(natural)].concat(cfg.aiModelDir ? ["--model", path.join(cfg.aiModelDir, "realesr-general-x4v3.pth")] : []);
+        : [path.join(AI_DIR, "realesrgan.py"), "--in", inFile, "--out", outFile, "--outscale", String(scale), "--natural", String(natural)].concat(archArgs());
       try {
         await py(args, cfg.aiTimeoutMs, "Neural upscaling");
         if (faces > 0 && cfg.aiFaces && !edsr) {
@@ -64,7 +67,7 @@ module.exports = function createNeural(cfg) {
   function frames(inDir, outDir, scale, { natural = 0.2, timeoutMs } = {}) {
     return queued(() => {
       const args = [path.join(AI_DIR, "realesrgan.py"), "--in-dir", inDir, "--out-dir", outDir, "--outscale", String(scale), "--natural", String(natural)]
-        .concat(cfg.aiModelDir ? ["--model", path.join(cfg.aiModelDir, "realesr-general-x4v3.pth")] : []);
+        .concat(archArgs());
       return py(args, timeoutMs || cfg.videoTimeoutMs, "AI video enhancement");
     });
   }

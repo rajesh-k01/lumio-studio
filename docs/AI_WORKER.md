@@ -125,3 +125,29 @@ That is about +1.65 dB over Lanczos. It is a clean-downscale test, so it shows w
 ## Not built
 
 Automatic captions from speech need a speech recognition model. Automatic face and body detection (so retouching needs no brush) would need landmark and segmentation models. Both are the natural next workers to add.
+
+## Network choice (`LUMIO_AI_ARCH`)
+
+| value | model | speed | note |
+|---|---|---|---|
+| `compact` (default) | realesr-general-x4v3 | fast | good on CPU |
+| `plus` | RealESRGAN_x4plus | ~10x slower | no clear gain on the Wink test pair |
+| `swinir` | SwinIR-L GAN (vendored, Apache-2.0) | ~40x slower | most natural, practically needs a GPU |
+
+Put the matching weight file in `LUMIO_AI_MODEL_DIR` (`realesr-general-x4v3.pth`, `RealESRGAN_x4plus.pth`, `SwinIR_L_GAN.pth`).
+
+## In-browser AI (no server)
+
+`public/js/neuralweb.js` runs the compact model (`public/ai-web/realesr-general-x4v3.onnx`, exported with `ai/export_onnx.py`, parity 1.2e-6) through onnxruntime-web: WebGPU when present, otherwise WASM. It is used only when the server AI is off, for sources up to about 1 MP, and for HD or larger levels and "AI enhance". Measured: about 4 min for a 717x1280 photo on 2 CPU cores with WASM (no GPU tested). There is no GFPGAN face restore in the browser, so eyes look harsher than on the server path.
+For GitHub Pages, `npm run pages` copies `ai-web/` next to the root `index.html`.
+
+## Measured against one Wink pair (1080 short-side view)
+
+| output | PSNR | SSIM | LapVar | Sat | L* |
+|---|---|---|---|---|---|
+| Wink | - | - | 273.4 | 88.5 | 135.5 |
+| app, no AI | 27.65 | 0.791 | 249.5 | 88.1 | 135.3 |
+| browser AI | 28.73 | 0.812 | 225.6 | 86.5 | 134.6 |
+| server AI + faces | 28.44 | 0.795 | 273.7 | 86.1 | 135.0 |
+
+Tone and colour already match. The remaining gap is generative fine detail (embroidery, eye texture) that statistics fitting on one pair cannot reproduce.

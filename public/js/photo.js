@@ -16,7 +16,7 @@
 
   function defTf() { return { rot: 0, fx: false, fy: false, ratio: "orig", zoom: 0, px: 0, py: 0 }; }
   var S = { base: null, rotC: null, name: "photo", settings: E.sanitize({}), tf: defTf(), items: [], sel: -1, tool: "enhance",
-    hist: [], hi: -1, alpha: false, res: "orig", lvl: "orig", look: "AI enhance", cache: {}, cacheKeys: [], viewImg: null, viewKey: "", status: "", split: false, splitAt: 0.5, holding: false, projectId: null, stamp: 0 };
+    hist: [], hi: -1, alpha: false, res: "orig", lvl: "orig", look: "AI enhance", webAI: false, cache: {}, cacheKeys: [], viewImg: null, viewKey: "", status: "", split: false, splitAt: 0.5, holding: false, projectId: null, stamp: 0 };
   var R = { mode: null, color: "#d6336c", amt: 60, size: 40 }, B = null;
   var D = { sliders: {} }, brush = { size: 28, down: false }, tol = 28, mounted = false, pending = false;
 
@@ -68,7 +68,7 @@
   function levelDef(id) { return id === "ai" ? { id: "ai", label: "AI enhance", short: 0, tier: "free" } : F.resById(F.RESOLUTIONS, id); }
   function levelScale(id) { return id === "ai" || id === "orig" ? 1 : scaleFor(id); }
   function serverAI() { return L.mode === "server" && !!(L.health && L.health.ai) && L.isVip(); }
-  function curKey(id) { return [id, S.stamp, JSON.stringify(S.settings), serverAI() ? 1 : 0].join("|"); }
+  function curKey(id) { return [id, S.stamp, JSON.stringify(S.settings), serverAI() ? 1 : S.webAI ? 2 : 0].join("|"); }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function skinFraction(d, n) {
     var c = 0;
@@ -118,7 +118,29 @@
       return L.api.render(b, S.settings, { target: tgt, scale: 1, format: "png", neural: true, force: id === "ai", faces: L.health.faces ? 0.7 : 0 });
     }).then(function (r) { return { blob: r.blob, neural: r.neural }; });
   }
-  var NEURAL_TEXT = { "ai+faces": "AI neural upscale with natural faces", ai: "AI neural upscale", local: "Lumio standard enhancer (sign in as VIP, on a server with the AI worker, for neural quality)",
+  /* No server AI: the page can run the same Real-ESRGAN network in the browser when the ai-web files are published with it. */
+  function webEligible(id) {
+    if (id === "orig" || serverAI() || !S.webAI || !window.LumioNeuralWeb) return false;
+    var cr = cropRect();
+    return cr.cw * cr.ch <= window.LumioNeuralWeb.maxSourcePixels * 1.02 && (id === "ai" || levelScale(id) >= 1.05);
+  }
+  function webEnhance(id, b) {
+    var NW = window.LumioNeuralWeb, sc = levelScale(id), od = outDims(sc), src = transformed(0, 1);
+    b.text("AI enhancing in your browser… the first time it downloads the model (about 27 MB). A graphics card makes it quick; without one it takes a few minutes.");
+    return NW.upscale4x(src, function (f) { b.progress(f * 0.9); b.text("AI enhancing in your browser… " + Math.round(f * 100) + "%"); }).then(function (big) {
+      b.text("Finishing…"); b.progress(0.93);
+      var c = resample(big, { sx: 0, sy: 0, cw: big.width, ch: big.height }, od[0], od[1]), x = c.getContext("2d");
+      var plain = transformed(0, sc); x.globalAlpha = 0.25; x.drawImage(plain, 0, 0, od[0], od[1]); x.globalAlpha = 1; // 25% plain enlargement softens the crunchy look GAN models can have
+      // same recipe as the server path: the network already added detail and removed noise, so less noise reduction, no extra sharpening, and the natural finish
+      var st = Object.assign({}, S.settings, { denoise: Math.round(S.settings.denoise * 0.3), sharpen: 0, clarity: 0, natural: 100, calm: 100 });
+      return U.nextFrame().then(function () {
+        var d = x.getImageData(0, 0, c.width, c.height); E.enhance(d, c.width, c.height, st); x.putImageData(d, 0, 0);
+        return U.canvasBlob(c, "image/png");
+      });
+    }).then(function (blob) { return { blob: blob, neural: "web-ai" }; })
+      .catch(function () { return localEnhance(id); }); // never fail an enhance because the in-browser AI could not run
+  }
+  var NEURAL_TEXT = { "web-ai": "AI neural upscale running in your browser", "ai+faces": "AI neural upscale with natural faces", ai: "AI neural upscale", local: "Lumio standard enhancer (sign in as VIP, on a server with the AI worker, for neural quality)",
     "too-large": "Standard enhancer (this photo is above the server's AI size limit)", "not-needed": "Standard enhancer (this photo is already larger than the chosen size, so no AI upscale was needed)", unavailable: "Standard enhancer (the AI worker is off on this server)", off: "Standard enhancer" };
   /* Enhance the photo for a quality level. Results are cached, so going back to a level you already made is instant. */
   function enhanceTo(id, look) {
@@ -130,8 +152,8 @@
     if (look) S.look = look;
     var a = autoSettings(id);
     S.settings = a.settings; S.res = id === "ai" ? "orig" : id; S.lvl = id; pushHist();
-    var key = curKey(id), hit = S.cache[key], b = hit ? null : U.busy("Enhancing" + (id === "orig" ? "" : " to " + def.label + (id === "ai" ? "" : " (" + od[0] + " × " + od[1] + ")")) + "…");
-    var job = hit ? Promise.resolve(hit) : U.nextFrame().then(function () { return id === "orig" ? localEnhance(id) : (serverAI() ? serverEnhance(id) : localEnhance(id)); }).then(function (e) {
+    var key = curKey(id), hit = S.cache[key], useWeb = !hit && webEligible(id), b = hit ? null : U.busy("Enhancing" + (id === "orig" ? "" : " to " + def.label + (id === "ai" ? "" : " (" + od[0] + " × " + od[1] + ")")) + "…", useWeb);
+    var job = hit ? Promise.resolve(hit) : U.nextFrame().then(function () { return id === "orig" ? localEnhance(id) : (serverAI() ? serverEnhance(id) : useWeb ? webEnhance(id, b) : localEnhance(id)); }).then(function (e) {
       e.key = key; e.id = id; e.notes = a.notes; S.cache[key] = e; S.cacheKeys.push(key); trimCache(); return e;
     });
     return job.then(function (e) {
@@ -142,6 +164,7 @@
       });
     }).catch(function (err) { if (b) b.done(); U.fail(err); return null; });
   }
+  if (window.LumioNeuralWeb) window.LumioNeuralWeb.available().then(function (v) { S.webAI = v; });
   function aiEnhance() { return enhanceTo(S.lvl === "orig" ? "ai" : S.lvl, "AI enhance"); }
   function invalidate() { S.rotC = null; S.stamp++; }
 
