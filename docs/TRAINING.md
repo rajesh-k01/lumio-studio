@@ -92,3 +92,17 @@ Rough order, from cheapest to hardest. Costs and times are rules of thumb from t
 7. **Video** needs temporal consistency (otherwise detail flickers between frames), so use a video model or optical flow, and run it frame by frame on a GPU worker through the FFmpeg route.
 8. **Measure like a product team.** PSNR and SSIM reward safe, soft results. Add LPIPS, a no-reference score such as NIQE, and most importantly a side-by-side test of real user photos, because that is the judge Remini and Wink are tuned against.
 9. **Deploy.** Export to ONNX, run it in a worker behind `/api/ai/upscale` with a GPU, and keep the small-input cap (`LUMIO_AI_MAX_PIXELS`) until you have measured the speed.
+
+## Fine-tuning towards Wink with paired photos (`ai/train/finetune_wink.py`, `eval_finetune.py`)
+
+Pair = original photo + the same photo enhanced by Wink at 2x. The 4x network output is area-averaged to 2x (as in the app) and compared with Wink; only detail is learned (Wink's low frequencies are replaced by the original's, tone stays with the natural finish stage). A bottom band of the photo is held out; replay patches from other photos keep the model close to the original.
+
+Result with ONE pair (CPU, 50 and 25 min runs), held-out band, detail target:
+
+| model | PSNR | SSIM | LapVar (Wink 197) |
+|---|---|---|---|
+| original compact | 25.07 | 0.700 | 641 (too crunchy) |
+| tuned, L1 + high-pass | 31.33 | 0.825 | 24 (too soft, blurry) |
+| tuned, + texture-strength loss | 29.81 | 0.793 | 76 (calmer, still soft, no Wink-style embroidery) |
+
+Numbers improve but the pictures do not look like Wink: L1-type losses average away fine detail. The tuned weights were NOT shipped. Reaching Wink's crisp embroidery needs many pairs plus an adversarial/perceptual loss (GPU). Run: `python3 finetune_wink.py --orig o.jpg --ref wink.jpg --weights realesr-general-x4v3.pth --out runs/x --replay-dir others/ --minutes 60 --l1w 0.3 --statw 8`.
